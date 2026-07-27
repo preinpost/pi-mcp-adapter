@@ -193,6 +193,9 @@ export function extractOAuthConfig(definition: ServerEntry): McpOAuthConfig {
     }
     config.clientUri = clientUri
   }
+  if (definition.oauth?.skipIssuerValidation !== undefined) {
+    config.skipIssuerValidation = definition.oauth.skipIssuerValidation
+  }
   return config
 }
 

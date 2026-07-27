@@ -73,6 +73,7 @@ export interface McpOAuthConfig {
   redirectUri?: string
   clientName?: string
   clientUri?: string
+  skipIssuerValidation?: boolean
 }
 
 /** Callbacks for OAuth flow interactions */

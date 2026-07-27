@@ -313,6 +313,9 @@ export interface OAuthConfig {
   clientName?: string;
   /** Client homepage URI for dynamic registration */
   clientUri?: string;
+  /** Skip the RFC 8414 §3.3 issuer-echo check. Security-weakening; use
+   *  only for authorization servers known to publish a mismatched issuer. */
+  skipIssuerValidation?: boolean;
 }
 
 // Server configuration
@@ -433,6 +436,12 @@ export interface McpSettings {
    * are imported once and removed.
    */
   oauthDir?: string;
+  /**
+   * Skip the RFC 8414 §3.3 issuer-echo check for all servers.
+   * Security-weakening; use only when multiple servers publish mismatched issuers.
+   * Per-server oauth.skipIssuerValidation overrides this global setting.
+   */
+  skipIssuerValidation?: boolean;
 }
 
 // Root config

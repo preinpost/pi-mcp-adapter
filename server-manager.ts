@@ -671,10 +671,11 @@ export class McpServerManager {
 
     // Create request init with headers (Authorization now included for bearer auth)
     const requestInit = Object.keys(headers).length > 0 ? { headers } : undefined;
+    const oauthConfig = extractOAuthConfig(definition);
     const createAuthProvider = (): McpOAuthProvider => new McpOAuthProvider(
       serverName,
       serverUrl,
-      extractOAuthConfig(definition),
+      oauthConfig,
       {
         onRedirect: async (_authUrl) => {
           // URL is captured by startAuth, no need to log
@@ -698,6 +699,7 @@ export class McpServerManager {
       const streamableTransport = new StreamableHTTPClientTransport(url, {
         requestInit,
         authProvider,
+        skipIssuerMetadataValidation: oauthConfig.skipIssuerValidation,
       });
       const probeTransport = traceObserver
         ? wrapTransportWithMcpTrace(streamableTransport, serverName, "streamable-http", traceObserver)
@@ -722,7 +724,7 @@ export class McpServerManager {
         }
 
         // StreamableHTTP works - create fresh transport for actual use
-        return new StreamableHTTPClientTransport(url, { requestInit, authProvider });
+        return new StreamableHTTPClientTransport(url, { requestInit, authProvider, skipIssuerMetadataValidation: oauthConfig.skipIssuerValidation });
       } catch (error) {
         if (error instanceof AggregateError && (
           error.message === "MCP connection abort cleanup failed" ||
@@ -762,7 +764,7 @@ export class McpServerManager {
         }
 
         // SSE is the legacy transport
-        return new SSEClientTransport(url, { requestInit, authProvider });
+        return new SSEClientTransport(url, { requestInit, authProvider, skipIssuerMetadataValidation: oauthConfig.skipIssuerValidation });
       }
     }
   }
