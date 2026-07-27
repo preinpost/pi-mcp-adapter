@@ -135,6 +135,54 @@ describe("mcp-auth-flow explicit auth", () => {
     expect(mocks.open).not.toHaveBeenCalled();
   });
 
+  it("passes skipIssuerMetadataValidation through the auth SDK when configured", async () => {
+    const { authenticate, completeAuthFromInput, startAuth } = await import("../mcp-auth-flow.ts");
+
+    await authenticate("skip-cc", "https://api.example.com/mcp", {
+      url: "https://api.example.com/mcp",
+      auth: "oauth",
+      oauth: {
+        grantType: "client_credentials",
+        clientId: "service-client",
+        clientSecret: "service-secret",
+        skipIssuerValidation: true,
+      },
+    });
+
+    expect(mocks.sdkAuth).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ skipIssuerMetadataValidation: true }),
+    );
+
+    mocks.sdkAuth.mockReset();
+    mocks.sdkAuth.mockImplementationOnce(async (provider) => {
+      await provider.redirectToAuthorization(new URL("https://auth.example.com/authorize?client_id=skip"));
+      return "REDIRECT";
+    }).mockImplementationOnce(async () => "AUTHORIZED");
+
+    await startAuth("skip-code", "https://api.example.com/mcp", {
+      url: "https://api.example.com/mcp",
+      auth: "oauth",
+      oauth: { skipIssuerValidation: true },
+    });
+
+    expect(mocks.sdkAuth).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ skipIssuerMetadataValidation: true }),
+    );
+
+    const state = await mocks.sdkAuth.mock.calls[0][0].state();
+    await completeAuthFromInput("skip-code", `code=abc&state=${state}`);
+
+    expect(mocks.sdkAuth).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        authorizationCode: "abc",
+        skipIssuerMetadataValidation: true,
+      }),
+    );
+  });
+
   it("clears stale dynamic client info before client_credentials auth", async () => {
     mocks.sdkAuth.mockImplementationOnce(async (provider) => {
       expect(await provider.clientInformation()).toBeUndefined();

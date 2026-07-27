@@ -51,6 +51,8 @@ export interface AuthenticateOptions {
   authStorageOptions?: AuthStorageOptions
   signal?: AbortSignal
   runtime?: McpOAuthRuntime
+  /** Optional OAuth config for token refresh (e.g. skipIssuerValidation). */
+  oauthConfig?: McpOAuthConfig
 }
 
 type AuthDiscovery = {
@@ -65,6 +67,7 @@ type PendingAuth = {
   authorizationUrl: string
   discovery: AuthDiscovery
   authStorageOptions: AuthStorageOptions
+  skipIssuerValidation?: boolean
 }
 
 type RuntimeState = {
@@ -310,7 +313,11 @@ export async function startAuth(
     try {
       const discovery = await probeAuthDiscovery(serverUrl, definition, signal)
       throwIfAborted(signal)
-      const result = await abortable(runSdkAuth(authProvider, { serverUrl, ...discovery }), signal)
+      const result = await abortable(runSdkAuth(authProvider, {
+        serverUrl,
+        ...discovery,
+        skipIssuerMetadataValidation: config.skipIssuerValidation,
+      }), signal)
       throwIfAborted(signal)
       if (result !== "AUTHORIZED") {
         throw new UnauthorizedError("Failed to authorize")
@@ -376,7 +383,11 @@ export async function startAuth(
 
     const discovery = await probeAuthDiscovery(serverUrl, definition, signal)
     throwIfAborted(signal)
-    const result = await abortable(runSdkAuth(authProvider, { serverUrl, ...discovery }), signal)
+    const result = await abortable(runSdkAuth(authProvider, {
+      serverUrl,
+      ...discovery,
+      skipIssuerMetadataValidation: config.skipIssuerValidation,
+    }), signal)
     throwIfAborted(signal)
     if (result === "AUTHORIZED") {
       authProvider.deactivate()
@@ -387,7 +398,15 @@ export async function startAuth(
     if (!capturedUrl) {
       throw new UnauthorizedError("OAuth authorization URL was not provided")
     }
-    await setPendingAuth(runtime, serverName, { serverName, authProvider, serverUrl, authorizationUrl: capturedUrl.toString(), discovery, authStorageOptions }, oauthState, signal, generation)
+    await setPendingAuth(runtime, serverName, {
+      serverName,
+      authProvider,
+      serverUrl,
+      authorizationUrl: capturedUrl.toString(),
+      discovery,
+      authStorageOptions,
+      skipIssuerValidation: config.skipIssuerValidation,
+    }, oauthState, signal, generation)
     return { authorizationUrl: capturedUrl.toString() }
   } catch (error) {
     authProvider.deactivate()
@@ -580,6 +599,7 @@ export async function completeAuth(
       authorizationCode: code,
       ...(iss !== undefined ? { iss } : {}),
       ...pendingAuth.discovery,
+      skipIssuerMetadataValidation: pendingAuth.skipIssuerValidation,
     }), signal)
     throwIfAborted(signal)
     if (result !== "AUTHORIZED") {
@@ -742,8 +762,9 @@ export async function getValidToken(
     console.log(`MCP Auth: Token expired for ${serverName}, attempting refresh`)
 
     try {
+      const oauthConfig = options.oauthConfig ?? {}
       // Create auth provider for token refresh
-      const authProvider = new McpOAuthProvider(serverName, serverUrl, {}, {
+      const authProvider = new McpOAuthProvider(serverName, serverUrl, oauthConfig, {
         onRedirect: async () => {},
       }, authStorageOptions, runtime.signal)
 
@@ -757,7 +778,11 @@ export async function getValidToken(
 
         const discovery = await probeAuthDiscovery(serverUrl, undefined, signal)
         throwIfAborted(signal)
-        const result = await abortable(runSdkAuth(authProvider, { serverUrl, ...discovery }), signal)
+        const result = await abortable(runSdkAuth(authProvider, {
+          serverUrl,
+          ...discovery,
+          skipIssuerMetadataValidation: oauthConfig.skipIssuerValidation,
+        }), signal)
         throwIfAborted(signal)
         if (result !== "AUTHORIZED") {
           return null
